@@ -4,26 +4,43 @@ import feedparser
 from trafilatura import extract, fetch_url
 
 from llm import write_script
-from tts_demo import create_audio
+from audio_generator import create_audio
 
-articles = feedparser.parse('https://techcrunch.com/feed/')
+FEED_URL = "https://techcrunch.com/feed/"
+MAX_ARTICLES = 5
+MAX_CHARS = 6000  # keeps each prompt well inside the model's 8192-token context
 
-# print(len(articles.entries))
-link = articles.entries[0].link
-print(link)
 
-# for a in articles.entries:
-#     print(a.link)
+def fetch_article_text(link):
+    downloaded = fetch_url(link)
+    if not downloaded:
+        return None
+    return extract(downloaded)
 
-downloaded = fetch_url(link)
-text = extract(downloaded)
 
-if text:
-    script = write_script(text)
-    print(script)
+def main():
+    articles = feedparser.parse(FEED_URL)
 
-    # e.g. .../2026/10/05/lucid-motors-ev-output-falls/ -> 2026-10-06-lucid-motors-ev-output-falls.wav
-    slug = link.rstrip("/").split("/")[-1]
-    create_audio(script, filename=f"{date.today()}-{slug}.wav")
-else:
-    print("Couldn't extract article text.")
+    summaries = []
+    for a in articles.entries:
+        if len(summaries) >= MAX_ARTICLES:
+            break
+        print(a.link)
+        text = fetch_article_text(a.link)
+        if not text:
+            print("  skipped: couldn't extract text")
+            continue
+        summary = write_script(text[:MAX_CHARS])
+        print(summary, end="\n\n")
+        summaries.append(summary)
+
+    if not summaries:
+        print("Couldn't extract any article text.")
+        return
+
+    script = "\n\n".join(summaries)
+    create_audio(script, filename=f"{date.today()}.wav")
+
+
+if __name__ == "__main__":
+    main()

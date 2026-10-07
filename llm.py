@@ -2,7 +2,7 @@ import re
 import sys
 
 from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
 
 llm = ChatOllama(
     model="llama3.1",
@@ -22,10 +22,10 @@ def clean_script(text):
 
 
 def write_script(user_text):
-    messages = [
-        SystemMessage(content="""
+    template = ChatPromptTemplate(messages=[
+        ("system", """
         You are a helpful assistant and you will be given an article and
-        summarize it into a 20-second read adopting a TLDR format.
+        summarize it into a 20-second read (about 50 words) adopting a TLDR format.
 
         Your output will be read aloud by a text-to-speech engine, so write plain spoken text only:
         no markdown, asterisks, headings, bullet points, or emojis.
@@ -33,10 +33,12 @@ def write_script(user_text):
 
         The dialogue should be upbeat yet informational, adopting a style similar to NPR's Up-First podcast.
         """),
-        HumanMessage(content=user_text)
-    ]
+        ("user", "This is the article {article}")
+    ])
+    prompt_parameters = {"article": user_text}
 
-    response = llm.invoke(messages)
+    chain = template | llm
+    response = chain.invoke(prompt_parameters)
     return clean_script(response.content)
 
 
